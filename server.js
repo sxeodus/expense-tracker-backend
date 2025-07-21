@@ -1,59 +1,61 @@
-require('dotenv').config(); // Load environment variables from .env
-const express = require('express'); // Import Express framework
-const cors = require('cors'); // Import CORS middleware to handle cross-origin requests
-const db = require('./db'); // Import database connection
-const transactionsRoutes = require('./routes/transactions'); // Import transaction routes
-const authRoutes = require('./routes/auth'); // Import auth routes
-const profileRoutes = require('./routes/profile'); // Import profile routes
+const express = require("express");
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const authRoutes = require("./routes/auth");
+const transactionRoutes = require("./routes/transactions");
+const cron = require("node-cron");
+const { sendMonthlyReports } = require("./services/reportingService");
+require("dotenv").config();
 
-const app = express(); // Initialize Express app
-
-// Debug: Log environment variables to ensure they are loaded correctly
-console.log('Environment Variables:', {
-  DB_HOST: process.env.DB_HOST,
-  DB_USER: process.env.DB_USER,
-  DB_PASSWORD: process.env.DB_PASSWORD ? '******' : 'Not Set',
-  DB_NAME: process.env.DB_NAME,
-});
-
-// Check for missing environment variables and exit if any are missing
-if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
-  console.error('Missing required environment variables. Please check your .env file.');
-  process.exit(1);
-}
-
-// Middleware
-app.use(cors()); // Enable cross-origin requests
-app.use(express.json()); // Parse incoming JSON request bodies
-
-// Routes
-app.use('/api/transactions', transactionsRoutes); // Mount transaction routes at /api/transactions
-app.use('/api/auth', authRoutes); // Authentication routes
-app.use('/api/profile', profileRoutes); // Profile routes
-
-// Test route to verify the server is running
-app.get('/', (req, res) => {
-  res.send('Expense Tracker API is running...');
-});
-
-// Global error-handling middleware to catch unhandled errors
-app.use((err, req, res, next) => {
-  console.error(err.stack); // Log the error stack trace
-  res.status(500).send({ error: 'Something went wrong!' }); // Send a generic error response
-});
-
-// Start the server on the specified port
+const app = express();
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+
+// --- Production Security Setup ---
+
+// Set security HTTP headers. It's a good practice to use helmet for security.
+app.use(helmet());
+
+// Configure CORS for your live frontend on Netlify and local development
+const allowedOrigins = ['http://localhost:3000', 'https://your-netlify-app-name.netlify.app']; // IMPORTANT: Replace with your actual Netlify URL
+app.use(cors({
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true,
+}));
+
+// Rate limiting to prevent brute-force attacks
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }); // 100 requests per 15 minutes
+app.use('/api', limiter); // Apply to all API routes
+
+app.use(express.json());
+app.use(cookieParser());
+
+app.use("/api/auth", authRoutes);
+app.use("/api/transactions", transactionRoutes);
+
+// Schedule the monthly report job.
+// This cron expression '0 0 1 * *' means "at 00:00 on day-of-month 1".
+cron.schedule("0 0 1 * *", () => {
+  console.log("Running monthly report job...");
+  sendMonthlyReports();
+}, {
+  scheduled: true,
+  timezone: "UTC" // Use UTC to avoid timezone issues
 });
 
-// Graceful shutdown to close the database connection when the server stops
-process.on('SIGINT', () => {
-  console.log('Shutting down server...');
-  db.end((err) => {
-    if (err) console.error('Error closing database connection:', err.stack);
-    else console.log('Database connection closed.');
-    process.exit(0);
-  });
+app.get("/", (req, res) => {
+  res.send("API is running...");
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
