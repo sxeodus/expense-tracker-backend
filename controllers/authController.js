@@ -215,7 +215,18 @@ exports.forgotPassword = async (req, res) => {
         await db.query("UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE id = ?", [hashedToken, new Date(tokenExpiry), user.id]);
 
         const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
-        const emailHtml = `...`; // Your email HTML here
+        const emailHtml = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <h2>Password Reset Request</h2>
+            <p>Hello ${user.firstname || 'there'},</p>
+            <p>You are receiving this email because a password reset request was made for your account.</p>
+            <p>Please click on the button below to reset your password. This link is valid for 10 minutes.</p>
+            <a href="${resetUrl}" style="background-color: #4CAF50; color: white; padding: 14px 25px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px;" clicktracking=off>Reset Password</a>
+            <p>If you did not request a password reset, please ignore this email or contact support if you have concerns.</p>
+            <p>Thank you,<br>The Expense Tracker Team</p>
+            <hr style="border: none; border-top: 1px solid #eee;" />
+            <p style="font-size: 0.8em; color: #777;">If you're having trouble clicking the button, copy and paste this URL into your web browser:<br><a href="${resetUrl}" clicktracking=off>${resetUrl}</a></p>
+        </div>`;
 
         await sendEmail({ email: user.email, subject: 'Password Reset Request', html: emailHtml });
         res.status(200).json({ message: 'If a user with that email exists, a password reset link has been sent.' });
