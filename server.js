@@ -17,20 +17,26 @@ const PORT = process.env.PORT || 5000;
 // Set security HTTP headers. It's a good practice to use helmet for security.
 app.use(helmet());
 
-// Configure CORS for your live frontend on Netlify and local development
-const allowedOrigins = ['http://localhost:3000', 'https://your-netlify-app-name.netlify.app']; // IMPORTANT: Replace with your actual Netlify URL
-app.use(cors({
+// --- CORS Configuration ---
+// Define a whitelist of allowed origins. We'll get these from environment variables.
+const whitelist = [
+  process.env.FRONTEND_URL,         // Your deployed Netlify site URL
+  process.env.CUSTOM_DOMAIN_URL,    // Your custom domain e.g., https://segunodumeso.site
+  'http://localhost:3000'           // For local development
+].filter(Boolean); // This removes any undefined entries if the env vars aren't set
+
+const corsOptions = {
   origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    // Allow requests with no origin (like mobile apps or curl requests) or from our whitelist
+    if (!origin || whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
     }
-    return callback(null, true);
   },
   credentials: true,
-}));
+};
+app.use(cors(corsOptions));
 
 // Rate limiting to prevent brute-force attacks
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }); // 100 requests per 15 minutes
