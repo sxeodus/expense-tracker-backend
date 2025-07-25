@@ -17,8 +17,9 @@ if (process.env.DATABASE_URL) {
     },
   });
 } else {
-  // For local development using individual .env variables
-  console.log("Connecting to local database...");
+  // For local development or production using individual .env variables
+  const isProduction = process.env.NODE_ENV === 'production';
+  console.log(isProduction ? "Connecting to production database..." : "Connecting to local database...");
   pool = mysql.createPool({
     host: process.env.DB_HOST || "localhost",
     user: process.env.DB_USER,
@@ -27,9 +28,8 @@ if (process.env.DATABASE_URL) {
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    // Add SSL for production environments like AlwaysData
-    // Render sets NODE_ENV to 'production' automatically.
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined
+    // Only enable SSL in production if DB_SSL is explicitly set to 'true'
+    ssl: isProduction && process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : undefined
   });
 }
 
@@ -42,8 +42,9 @@ pool
   })
   .catch((err) => {
     console.error("Error connecting to MySQL:", err.message);
-    // Exit the process with a failure code if we can't connect to the DB
-    process.exit(1);
+    // Allow the application to fail gracefully if the DB isn't available.
+    // Render will show this in the logs and the deployment will fail as expected.
+    throw err;
   });
 
 module.exports = pool;
