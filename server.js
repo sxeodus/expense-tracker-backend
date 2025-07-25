@@ -12,6 +12,10 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust the first proxy in front of the app. This is necessary for services like Render.
+// It allows express-rate-limit to correctly identify the user's IP address.
+app.set('trust proxy', 1);
+
 // --- Production Security Setup ---
 
 // Set security HTTP headers. It's a good practice to use helmet for security.
@@ -60,6 +64,15 @@ cron.schedule("0 0 1 * *", () => {
 
 app.get("/", (req, res) => {
   res.send("API is running...");
+});
+
+// --- Global Error Handler ---
+// This should be the last middleware. It catches any unhandled errors from your routes.
+app.use((err, req, res, next) => {
+  console.error(`--- UNHANDLED ERROR: ${req.method} ${req.originalUrl} ---`);
+  console.error(err.stack);
+  // Avoid sending stack trace to the client in production
+  res.status(500).json({ message: 'An unexpected error occurred on the server.' });
 });
 
 app.listen(PORT, () => {
