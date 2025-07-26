@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
 const db = require("../config/db");
 const sendEmail = require("../utils/sendEmail");
+const generateToken = require("../utils/generateToken");
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -34,18 +35,9 @@ exports.register = async (req, res) => {
       [firstname, lastname, username, email, password_hash, budget || null]
     );
 
-    const newUser = { id: result.insertId };
-    const payload = { user: { id: newUser.id } };
+    const token = await generateToken(result.insertId);
+    res.status(201).json({ token });
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: "5h" },
-      (err, token) => {
-        if (err) throw err;
-        res.status(201).json({ token });
-      }
-    );
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: "Server error" });
@@ -76,16 +68,8 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const payload = { user: { id: user.id } };
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: "5h" },
-      (err, token) => {
-        if (err) throw err;
-        res.json({ token });
-      }
-    );
+    const token = await generateToken(user.id);
+    res.json({ token });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: "Server error" });
@@ -116,16 +100,8 @@ exports.googleLogin = async (req, res) => {
       user = { id: result.insertId };
     }
 
-    const payload = { user: { id: user.id } };
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: "5h" },
-      (err, token) => {
-        if (err) throw err;
-        res.json({ token });
-      }
-    );
+    const token = await generateToken(user.id);
+    res.json({ token });
   } catch (error) {
     console.error("Google login error:", error);
     res.status(500).json({ message: "Google authentication failed" });
