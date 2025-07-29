@@ -87,7 +87,7 @@ exports.googleLogin = async (req, res) => {
       idToken: credential,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
-    const { email, given_name, family_name } = ticket.getPayload();
+    const { email, given_name, family_name, name } = ticket.getPayload();
 
     let [users] = await db.query("SELECT * FROM users WHERE email = ?", [email]);
     let user = users[0];
@@ -105,9 +105,13 @@ exports.googleLogin = async (req, res) => {
         username = `${username.split('@')[0]}_${crypto.randomBytes(3).toString('hex')}`;
       }
 
+      // Use fallback values if given_name or family_name are not provided by Google.
+      const firstName = given_name || (name ? name.split(' ')[0] : email.split('@')[0]);
+      const lastName = family_name || (name ? name.split(' ').slice(1).join(' ') : '');
+
       const [result] = await db.query(
         "INSERT INTO users (firstname, lastname, email, username) VALUES (?, ?, ?, ?)",
-        [given_name, family_name, email, username]
+        [firstName, lastName, email, username]
       );
       user = { id: result.insertId };
     }

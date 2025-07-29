@@ -19,7 +19,13 @@ app.set('trust proxy', 1);
 // --- Production Security Setup ---
 
 // Set security HTTP headers. It's a good practice to use helmet for security.
-app.use(helmet());
+// The default Cross-Origin-Opener-Policy (COOP) of 'same-origin' can block
+// Google's OAuth popup from communicating with your app. We relax it here.
+app.use(helmet({
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  // Setting COEP to false is often necessary for Google Sign-In to work smoothly.
+  crossOriginEmbedderPolicy: false,
+}));
 
 // --- CORS Configuration ---
 // Define a whitelist of allowed origins. We'll get these from environment variables.
