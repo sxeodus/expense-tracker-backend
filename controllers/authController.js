@@ -92,16 +92,37 @@ exports.googleLogin = async (req, res) => {
     let [users] = await db.query("SELECT * FROM users WHERE email = ?", [email]);
     let user = users[0];
 
+    let isNewUser = false;
     if (!user) {
+      isNewUser = true;
+      // If the user doesn't exist, create them.
+      // We must ensure the username (which we default to the email) is unique.
+      let username = email;
+      const [existingUserByUsername] = await db.query("SELECT id FROM users WHERE username = ?", [username]);
+
+      if (existingUserByUsername.length > 0) {
+        // If username is taken, append a short random string to the part before the @.
+        username = `${username.split('@')[0]}_${crypto.randomBytes(3).toString('hex')}`;
+      }
+
       const [result] = await db.query(
         "INSERT INTO users (firstname, lastname, email, username) VALUES (?, ?, ?, ?)",
-        [given_name, family_name, email, email]
+        [given_name, family_name, email, username]
       );
       user = { id: result.insertId };
     }
 
+    // Fetch the full user profile to return to the client
+    const [finalUserResult] = await db.query(
+      "SELECT id, firstname, lastname, username, email, budget FROM users WHERE id = ?",
+      [user.id]
+    );
+    const finalUser = finalUserResult[0];
+
     const token = await generateToken(user.id);
-    res.json({ token });
+    
+    // Return both token and user profile
+    res.status(isNewUser ? 201 : 200).json({ token, user: finalUser });
   } catch (error) {
     console.error("Google login error:", error);
     res.status(500).json({ message: "Google authentication failed" });
